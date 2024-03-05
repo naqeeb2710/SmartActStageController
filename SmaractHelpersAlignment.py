@@ -68,14 +68,14 @@ class SmaractPositioners:
         self.numChannels = namedtuple("Channels", "F")
         self.numChannels.F = 6
 
-        channel_inversion_dict = {"F": (0, 1, 3, 5, 4)}
+        # channel_inversion_dict = {"F": (0, 1, 2, 5, 4)}
 
-        for positioner, channels in channel_inversion_dict.items():
-            handle = getattr(self.handle, positioner)
-            for channel in channels:
-                ctl.SetProperty_i32(
-                    handle, channel, ctl.Property.LOGICAL_SCALE_INVERSION, 1
-                )
+        # for positioner, channels in channel_inversion_dict.items():
+        #     handle = getattr(self.handle, positioner)
+        #     for channel in channels:
+        #         ctl.SetProperty_i32(
+        #             handle, channel, ctl.Property.LOGICAL_SCALE_INVERSION, 1
+        #         )
 
         move_mode = ctl.MoveMode.CL_ABSOLUTE
         for positioner in self.handle._fields:
@@ -103,11 +103,11 @@ class SmaractPositioners:
 
         # Converts a positioner axis to a channel number recognised by the MCS2.
         self.axisToChannelDict = {
-            "Fx": 1,
-            "Fy": 2,
-            "Fz": 0,
-            "Fa": 4,
-            "Fb": 3,
+            "Fx": 0,
+            "Fy": 1,
+            "Fz": 2,
+            "Fa": 3,
+            "Fb": 4,
             "Fc": 5,
         }
 
@@ -487,3 +487,23 @@ class SmaractPositioners:
             ctl.Close(handle)
 
         print("Closed all handles")
+
+
+def main():
+    # Instantiate the SmaractPositioners class
+    positioners = SmaractPositioners()
+
+    # Calibrate the positioners
+    positioners.calibrate()
+
+    # Find reference for the positioners
+    positioners.findReference()
+
+    # Get the current position of the fiber
+    print(positioners.getPositions())
+
+    # close 
+    positioners.close()
+
+if __name__ == "__main__":
+    main()
