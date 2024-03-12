@@ -111,6 +111,15 @@ class SmaractPositioners:
             "Fc": 5,
         }
 
+        self.initialPositionsToHome = {
+            "Fx": 0,
+            "Fy": 0,
+            "Fz": 0,
+            "Fa": 0,
+            "Fb": 0,
+            "Fc": 0,
+        }
+
         # Options for scipy minimize
         self.optimiserOptions = {
             "xatol": 50_000,    # +-50nm
@@ -333,6 +342,96 @@ class SmaractPositioners:
         print(f"Time taken to optimise fiber: {end - start:.1f}s")
 
         self.optimisedFiberResults.append([self.getFiberPosition(), self.getFeedbackValue()])
+    
+    def moveInsideMatrix(self, stepSize=400_000):
+        """
+        Moves the fiber inside a matrix of positions.
+
+        Parameters
+        ----------
+        stepSize : int
+            Step size to move the fiber in picometers.
+        """
+        # make matrix coordinates relative to current position
+        x0, y0, z0, a0, b0, c0 = self.getFiberPosition(returnType="list")
+        print(f"Current position: {x0}, {y0}, {z0}, {a0}, {b0}, {c0}")
+        plain = [
+            (x0 - 2_000_000, x0 + 2_000_000),
+            (y0 - 2_000_000, y0 + 2_000_000),
+            (z0 - 2_000_000, z0 + 2_000_000),
+            (a0 - 2_000_000, a0 + 2_000_000),
+            (b0 - 2_000_000, b0 + 2_000_000),
+            (c0 - 2_000_000, c0 + 2_000_000),
+        ]
+
+        # Calculate the movement path from bottom left corner to center
+        x_min, y_min = plain[0][0], plain[1][0]
+        x_center, y_center = (plain[0][1] + plain[0][0]) // 2, (plain[1][1] + plain[1][0]) // 2
+        movement_path = []
+
+        for x in range(x_min, x_center, stepSize):
+            for y in range(y_min, y_center, stepSize):
+                movement_path.append((x, y))
+
+        for y in range(y_center, y_min - stepSize, -stepSize):
+            for x in range(x_min, x_center, stepSize):
+                movement_path.append((x, y))
+
+        # Add the center position
+        movement_path.append((x_center, y_center))
+        print(f"Movement path: {movement_path}")
+
+        return movement_path
+    
+    def planPositionerMovement(self, movement_path, stepSize=400_000):
+        """
+        Plan the movement of the positioner based on the generated movement path.
+
+        Parameters
+        ----------
+        movement_path : list
+            List of tuples containing the x, y coordinates of the movement path.
+        stepSize : int
+            Step size to move the positioner in picometers.
+
+        Returns
+        -------
+        positioner_movements : list
+            List of tuples containing the movements of the positioner.
+        """
+        positioner_movements = []
+
+        # Get current position of the positioner
+        current_x, current_y, _, _, _, _ = self.getFiberPosition(returnType="list")
+
+        # Iterate over each point in the movement path
+        for target_x, target_y in movement_path:
+            # Calculate steps needed to move in x and y directions
+            x_steps = (target_x - current_x) // stepSize
+            y_steps = (target_y - current_y) // stepSize
+
+            # Move positioner in x direction
+            for _ in range(abs(x_steps)):
+                if x_steps > 0:
+                    current_x += stepSize
+                else:
+                    current_x -= stepSize
+                positioner_movements.append(("x", current_x))
+
+            # Move positioner in y direction
+            for _ in range(abs(y_steps)):
+                if y_steps > 0:
+                    current_y += stepSize
+                else:
+                    current_y -= stepSize
+                positioner_movements.append(("y", current_y))
+
+        print(f"Planned positioner movements: {positioner_movements}")
+
+        return positioner_movements
+
+
+
 
     def movePositionerChannelToAbsolutePosition(self, positioner, position):
         """
@@ -377,9 +476,15 @@ class SmaractPositioners:
             ctl.Move(handle, channel, position, 0)
 
         self.waitForMoving()
-    
-    
 
+    def moveToInitialPosition(self):
+        """
+        Moves the piezos to their initial positions.
+        """
+    
+        print("Moving all positioners to initial position")
+        self.moveMultiplePositionerChannelsToAbsolutePosition(self.initialPositionsToHome)
+        self.waitForMoving()
 
     def moveFiberToNextDevice(self):
         """
@@ -494,14 +599,54 @@ def main():
     positioners = SmaractPositioners()
 
     # Calibrate the positioners
-    positioners.calibrate()
+    # positioners.calibrate()
+    # print("Calibrated all channels")
 
     # Find reference for the positioners
     positioners.findReference()
+    print("Referenced all channels")
 
     # Get the current position of the fiber
     print(positioners.getPositions())
 
+    # Move the fiber to a new position
+    # positioners.movePositionerChannelToAbsolutePosition("Fa", 800_000)
+    positioners.movePositionerChannelToAbsolutePosition("Fb", -5_000_000_000)
+    positioners.movePositionerChannelToAbsolutePosition("Fc", 5_000_000_000)
+    # positioners.movePositionerChannelToAbsolutePosition("Fx", 400_000)
+    # positioners.movePositionerChannelToAbsolutePosition("Fy", -5_000_000_000)
+    # positioners.movePositionerChannelToAbsolutePosition("Fz", -5_000_000_000)
+    # positioners.waitForMoving()
+    # Get the current position of the fiber
+    # print(positioners.getPositions())
+
+    axis_position_dict = {
+        "Fx": 2_000_000_000,
+        "Fy": -2_000_000_000,
+        "Fz": 2_000_000_000,
+        "Fa": -2_000_000_000,
+        "Fb": 2_000_000_000,
+        "Fc": -2_000_000_000,
+    }
+    # positioners.moveMultiplePositionerChannelsToAbsolutePosition(axis_position_dict)
+    # positioners.optimiseFiber()
+    # move=positioners.moveInsideMatrix()
+    # positioners.planPositionerMovement(move)
+    step_size = 400_000
+
+    # Plan the movement path inside the matrix
+    movement_path = positioners.moveInsideMatrix(step_size)
+
+    # Plan the movement of the positioner based on the generated movement path
+    positioner_movements = positioners.planPositionerMovement(movement_path, step_size)
+
+    # Move the X and Y positioners based on the planned movements
+    for axis, position in positioner_movements:
+        positioners.movePositionerChannelToAbsolutePosition(axis, position)
+
+    # Get the current position of the fiber
+    print(positioners.getPositions())
+    
     # close 
     positioners.close()
 
