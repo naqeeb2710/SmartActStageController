@@ -1,1 +1,8 @@
-/__pycache__/
+#ignore __pycache__ folder
+global-exclude __pycache__
+#ignore .pytest_cache folder
+global-exclude .pytest_cache
+#ignore .git folder
+global-exclude .git
+#ignore .vscode folder
+global-exclude .vscode
